@@ -86,7 +86,7 @@ docker build -t ai-business-agent .
 docker run -p 8000:8000 ai-business-agent
 ```
 
-## 简历描述
+## 描述
 
 开发企业智能业务分析 Agent，集成 RAG、多工具调用和自动报告生成能力；支持 PDF/Word/TXT 文档入库、基于企业资料问答、竞品与行业分析、SQL/Excel 数据分析，并通过检索命中率、引用覆盖率和任务完成率评估回答质量。
 
