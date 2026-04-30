@@ -1,0 +1,17 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_tmp/
+.mypy_cache/
+.ruff_cache/
+data/raw_docs/*
+data/processed/*
+data/reports/*
+!data/raw_docs/.gitkeep
+!data/processed/.gitkeep
+!data/reports/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
