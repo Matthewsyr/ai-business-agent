@@ -1,92 +1,110 @@
-# 基于 RAG 与多工具调用的企业智能业务分析 Agent
+# AI Business Analysis Agent
 
-面向咨询和业务分析场景的 AI Agent MVP，支持上传企业资料、行业报告和竞品文档，自动完成知识库检索、任务规划、工具调用、结构化分析和报告生成。
+FastAPI and Streamlit MVP for business analysis workflows. The app combines document ingestion, local RAG retrieval, task planning, optional web search, SQLite read-only analysis, CSV/XLSX summarization, and Markdown/DOCX report generation.
 
-## 核心能力
-
-- 知识库问答 RAG：支持 TXT、Markdown、PDF、Word 文档上传、切分、向量化和检索。
-- 业务分析 Agent：自动识别行业分析、竞品分析、需求总结和数据分析任务。
-- 多工具调用：支持网页搜索、SQLite 查询、Excel/CSV 统计分析。
-- 报告生成：输出 Markdown 报告，并在安装 `python-docx` 后同步生成 Word 文档。
-- Agent 评估：记录检索命中率、引用覆盖率和任务完成率。
-
-默认实现使用本地 Hash Embedding 和 JSON 向量库，便于无 API Key 演示和测试。生产环境可替换为 OpenAI/Qwen/DeepSeek Embedding + FAISS/Chroma/Milvus，Agent 编排也可迁移到 LangChain 或 LlamaIndex。
-
-## 项目结构
+## Project Layout
 
 ```text
-ai-business-agent/
-├── app/                 # FastAPI 应用与接口
-├── agent/               # 任务规划、记忆、执行器、Prompt
-├── rag/                 # 文档加载、切分、向量化、检索
-├── tools/               # 搜索、SQL、Excel、报告工具
-├── eval/                # 指标、反馈、自动评测脚本
-├── ui/                  # Streamlit 前端
-├── data/                # 原始文档、向量库、报告输出
-└── tests/               # 单元测试
+app/       FastAPI application and routes
+agent/     Planning, memory, and execution orchestration
+rag/       Loaders, splitting, embeddings, retrieval, and vector storage
+tools/     Web search, SQLite, Excel/CSV, and report tools
+ui/        Streamlit client
+data/      Raw documents, processed vector data, and generated reports
+tests/     Unit and API tests
 ```
 
-## 快速开始
+## Local Setup
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
+copy .env.example .env
+```
+
+Run the API:
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-打开接口文档：
-
-```text
-http://localhost:8000/docs
-```
-
-启动 Streamlit：
+Run the UI in another terminal:
 
 ```bash
 streamlit run ui/streamlit_app.py
 ```
 
-## API 示例
+The Streamlit app uses `API_BASE_URL` when set and otherwise defaults to:
 
-上传文档：
-
-```bash
-curl -F "file=@data/raw_docs/company.txt" http://localhost:8000/api/upload
+```text
+http://localhost:8000/api/v1
 ```
 
-发起分析：
+If you are running an older API route layout, override the sidebar API Base URL or set `API_BASE_URL=http://localhost:8000/api`.
 
-```bash
-curl -X POST http://localhost:8000/api/chat ^
-  -H "Content-Type: application/json" ^
-  -d "{\"question\":\"请分析A公司与主要竞品的差异化机会\",\"generate_report\":true}"
-```
+## Environment
 
-## 环境变量
+Copy `.env.example` to `.env` and adjust as needed.
 
-| 变量 | 默认值 | 说明 |
+| Variable | Default | Description |
 | --- | --- | --- |
-| `SEARCH_ENABLED` | `false` | 是否启用 DuckDuckGo HTML 搜索 |
-| `SEARCH_MAX_RESULTS` | `5` | 搜索结果数量 |
-| `EMBEDDING_DIM` | `256` | 本地 Hash Embedding 维度 |
-| `CHUNK_SIZE` | `900` | 文档切分长度 |
-| `CHUNK_OVERLAP` | `120` | 文档切分重叠长度 |
+| `SEARCH_ENABLED` | `false` | Enables live DuckDuckGo HTML search. |
+| `SEARCH_MAX_RESULTS` | `5` | Maximum returned web search results. |
+| `EMBEDDING_DIM` | `256` | Local hash embedding dimension. |
+| `CHUNK_SIZE` | `900` | Document chunk size. |
+| `CHUNK_OVERLAP` | `120` | Document chunk overlap. |
+| `RAG_TOP_K` | `5` | Retrieval result count. |
+| `API_BASE_URL` | `http://localhost:8000/api/v1` | Streamlit API base URL. |
+| `OPENAI_API_KEY` | unset | Enables OpenAI-compatible LLM/embedding mode when model names are also set. |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible API base URL. |
+| `CHAT_MODEL` | unset | Chat model used by the LLM answer synthesizer. |
+| `EMBEDDING_MODEL` | unset | Embedding model used with the Chroma vector store. |
 
-## 测试
-
-```bash
-pytest
-```
+When `OPENAI_API_KEY`, `CHAT_MODEL`, and `EMBEDDING_MODEL` are all configured, the app uses OpenAI-compatible embeddings, Chroma persistence, and LLM synthesis. Without them, it stays on the deterministic local hash embedding and template synthesizer path used by tests.
 
 ## Docker
 
+Build and run the API only:
+
 ```bash
 docker build -t ai-business-agent .
-docker run -p 8000:8000 ai-business-agent
+docker run --rm -p 8000:8000 -v "%cd%\data:/app/data" ai-business-agent
 ```
 
-## 简历描述
+Run API and UI together:
 
-开发企业智能业务分析 Agent，集成 RAG、多工具调用和自动报告生成能力；支持 PDF/Word/TXT 文档入库、基于企业资料问答、竞品与行业分析、SQL/Excel 数据分析，并通过检索命中率、引用覆盖率和任务完成率评估回答质量。
+```bash
+docker compose up --build
+```
 
+Services:
+
+- API: `http://localhost:8000`
+- API docs: `http://localhost:8000/docs`
+- UI: `http://localhost:8501`
+
+Both services mount `./data:/app/data`. In Docker Compose, the UI uses `http://api:8000/api/v1`.
+
+## Tool Safety
+
+- SQLite queries are opened read-only, checked for `SELECT`/`WITH`, protected by a SQLite authorizer, and capped by `max_rows`.
+- SQL, Excel/CSV, and search failures return structured tool errors instead of uncaught exceptions.
+- Excel analysis supports `.csv` and `.xlsx`. Legacy `.xls` files are rejected unless explicit `xlrd` support is added later.
+- Web search catches request failures and reports them in the tool result.
+
+## Tests and Quality
+
+```bash
+pytest
+pytest --cov=app --cov=agent --cov=rag --cov=tools --cov=eval --cov-report=term-missing --cov-fail-under=80
+ruff check .
+ruff format --check .
+mypy app agent rag tools eval
+```
+
+Focused tool tests:
+
+```bash
+pytest tests/test_tools.py
+```

@@ -48,4 +48,3 @@ class DocumentLoader:
 
         document = DocxDocument(str(path))
         return "\n".join(paragraph.text for paragraph in document.paragraphs)
-

@@ -34,7 +34,9 @@ def build_agent(workdir: Path) -> BusinessAnalysisAgent:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--questions", type=Path, required=True, help="JSONL file with question fields.")
+    parser.add_argument(
+        "--questions", type=Path, required=True, help="JSONL file with question fields."
+    )
     parser.add_argument("--workdir", type=Path, default=Path("data/processed"))
     args = parser.parse_args()
 
@@ -50,4 +52,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

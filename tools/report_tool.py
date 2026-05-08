@@ -78,4 +78,3 @@ class ReportTool:
     def _slugify(value: str) -> str:
         slug = re.sub(r"[^\w\u4e00-\u9fff]+", "-", value.strip().lower()).strip("-")
         return slug[:48] or "business-report"
-

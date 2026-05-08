@@ -6,9 +6,10 @@ from typing import Any
 
 from agent.memory import ConversationMemory
 from agent.planner import AgentPlan, BusinessPlanner
+from agent.synthesizer import AnswerSynthesizer, TemplateAnswerSynthesizer
 from eval.metrics import citation_coverage, retrieval_hit_rate
+from rag.interfaces import SearchResult
 from rag.retriever import RAGRetriever
-from rag.vector_store import SearchResult
 from tools.excel_tool import ExcelAnalysisTool
 from tools.report_tool import ReportTool
 from tools.search_tool import WebSearchTool
@@ -35,6 +36,8 @@ class BusinessAnalysisAgent:
         sql_tool: SQLQueryTool,
         excel_tool: ExcelAnalysisTool,
         report_tool: ReportTool,
+        synthesizer: AnswerSynthesizer | None = None,
+        top_k: int = 5,
     ) -> None:
         self.retriever = retriever
         self.planner = planner
@@ -42,6 +45,8 @@ class BusinessAnalysisAgent:
         self.sql_tool = sql_tool
         self.excel_tool = excel_tool
         self.report_tool = report_tool
+        self.synthesizer = synthesizer or TemplateAnswerSynthesizer()
+        self.top_k = max(1, int(top_k))
         self.memory = ConversationMemory()
 
     def run(
@@ -54,7 +59,7 @@ class BusinessAnalysisAgent:
     ) -> AgentResponse:
         self.memory.add("user", question)
         plan = self.planner.plan(question)
-        retrieved = self.retriever.search(question, top_k=5)
+        retrieved = self.retriever.search(question, top_k=self.top_k)
         tool_outputs = self._run_tools(
             question=question,
             plan=plan,
@@ -116,59 +121,7 @@ class BusinessAnalysisAgent:
         retrieved: list[SearchResult],
         tool_outputs: list[dict[str, Any]],
     ) -> str:
-        if not retrieved and not tool_outputs:
-            return (
-                "当前知识库没有检索到足够证据。建议先上传行业报告、公司资料、竞品文档或业务数据，"
-                "再重新发起分析。"
-            )
-
-        evidence_lines = []
-        for idx, item in enumerate(retrieved, start=1):
-            source = item.metadata.get("source", "knowledge_base")
-            preview = item.text.strip().replace("\n", " ")[:220]
-            evidence_lines.append(f"[{idx}] {source}：{preview}")
-
-        tool_lines = []
-        for output in tool_outputs:
-            tool_lines.append(f"- {output['tool']}: {output['result']}")
-
-        sections = [
-            f"## 背景\n问题：{question}\n\n本次任务类型为 `{plan.intent}`，已按资料检索、工具补充和结构化总结执行。",
-            "## 问题分析\n"
-            + self._analysis_text(plan.intent, retrieved)
-            + ("\n\n工具补充：\n" + "\n".join(tool_lines) if tool_lines else ""),
-            "## 关键发现\n"
-            + "\n".join(
-                f"- {line}" for line in evidence_lines[:5]
-            ),
-            "## 建议方案\n"
-            "- 优先围绕高频证据中的业务主题形成分析框架。\n"
-            "- 对竞品、市场和用户需求分别建立指标表，补充定量数据后再做优先级排序。\n"
-            "- 报告交付时保留来源编号，便于复核和二次追问。",
-            "## 引用来源\n" + "\n".join(evidence_lines),
-        ]
-        if plan.intent == "competitor_analysis":
-            sections.insert(
-                2,
-                "## 竞品/对比分析\n"
-                "建议从目标客户、核心能力、商业模式、渠道、价格和风险六个维度展开。"
-                "当前检索证据可作为对比表的事实基础。",
-            )
-        return "\n\n".join(sections)
-
-    @staticmethod
-    def _analysis_text(intent: str, retrieved: list[SearchResult]) -> str:
-        if intent == "industry_analysis":
-            return "行业分析应聚焦市场规模、增长驱动、政策/技术变化和竞争格局。"
-        if intent == "competitor_analysis":
-            return "竞品分析应先统一比较维度，再抽取各公司定位、产品能力和差异化策略。"
-        if intent == "requirement_summary":
-            return "需求总结应区分显性需求、隐性痛点、决策角色和可落地功能。"
-        if intent == "data_analysis":
-            return "数据分析应明确指标口径，结合 SQL 或 Excel 输出进行解释。"
-        if retrieved:
-            return "知识库检索到了相关企业资料，可基于来源片段生成业务结论。"
-        return "暂无足够检索证据。"
+        return self.synthesizer.synthesize(question, plan, retrieved, tool_outputs)
 
     @staticmethod
     def _source_payload(item: SearchResult) -> dict[str, Any]:
@@ -177,4 +130,3 @@ class BusinessAnalysisAgent:
             "metadata": item.metadata,
             "score": item.score,
         }
-

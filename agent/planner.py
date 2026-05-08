@@ -44,4 +44,3 @@ class BusinessPlanner:
             "综合证据生成结构化结论和建议",
         ]
         return AgentPlan(intent=intent, steps=steps, tools=tools, report_sections=sections)
-

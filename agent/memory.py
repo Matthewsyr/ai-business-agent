@@ -26,4 +26,3 @@ class ConversationMemory:
 
     def clear(self) -> None:
         self._messages.clear()
-

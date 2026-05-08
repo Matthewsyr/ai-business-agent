@@ -6,9 +6,21 @@ from rag.splitter import TextSplitter
 from rag.vector_store import JsonVectorStore
 
 
+class RecordingBatchEmbeddingModel(HashingEmbeddingModel):
+    def __init__(self) -> None:
+        super().__init__(dim=64)
+        self.batch_calls: list[list[str]] = []
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        self.batch_calls.append(texts)
+        return super().embed_batch(texts)
+
+
 def test_ingest_and_search_txt(tmp_path: Path) -> None:
     doc_path = tmp_path / "company.txt"
-    doc_path.write_text("A公司聚焦企业智能调研，核心能力包括RAG检索和自动报告生成。", encoding="utf-8")
+    doc_path.write_text(
+        "A公司聚焦企业智能调研，核心能力包括RAG检索和自动报告生成。", encoding="utf-8"
+    )
     retriever = RAGRetriever(
         embedding_model=HashingEmbeddingModel(dim=64),
         vector_store=JsonVectorStore(tmp_path / "vectors.json"),
@@ -22,3 +34,19 @@ def test_ingest_and_search_txt(tmp_path: Path) -> None:
     assert results
     assert "RAG" in results[0].text
 
+
+def test_retriever_uses_batch_embeddings_when_available(tmp_path: Path) -> None:
+    doc_path = tmp_path / "company.txt"
+    doc_path.write_text("alpha beta gamma delta", encoding="utf-8")
+    embedding_model = RecordingBatchEmbeddingModel()
+    retriever = RAGRetriever(
+        embedding_model=embedding_model,
+        vector_store=JsonVectorStore(tmp_path / "vectors.json"),
+        splitter=TextSplitter(chunk_size=10, chunk_overlap=2),
+    )
+
+    ingest = retriever.ingest_file(doc_path)
+
+    assert ingest["chunks_added"] > 1
+    assert len(embedding_model.batch_calls) == 1
+    assert len(embedding_model.batch_calls[0]) == ingest["chunks_created"]

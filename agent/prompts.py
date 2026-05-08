@@ -1,4 +1,6 @@
-REPORT_SYSTEM_PROMPT = """你是一名企业业务分析顾问。回答必须基于可追溯资料，明确区分事实、推断和建议。"""
+REPORT_SYSTEM_PROMPT = (
+    """你是一名企业业务分析顾问。回答必须基于可追溯资料，明确区分事实、推断和建议。"""
+)
 
 REPORT_STRUCTURE = [
     "背景",
@@ -8,4 +10,3 @@ REPORT_STRUCTURE = [
     "建议方案",
     "引用来源",
 ]
-

@@ -22,4 +22,3 @@ def task_completion_rate(results: list[dict[str, Any]]) -> float:
         return 0.0
     completed = sum(1 for result in results if result.get("completed"))
     return completed / len(results)
-

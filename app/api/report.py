@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from app.api.chat import _response_to_dict
+from app.api.schemas import api_success
 from app.config import settings
-from app.dependencies import get_agent
+from app.dependencies import get_agent, get_request_id
 
 router = APIRouter()
+v1_router = APIRouter()
 
 
 class ReportRequest(BaseModel):
@@ -18,8 +21,7 @@ class ReportRequest(BaseModel):
     excel_path: str | None = None
 
 
-@router.post("/report")
-def create_report(request: ReportRequest) -> dict[str, object]:
+def _create_report(request: ReportRequest) -> dict[str, Any]:
     response = get_agent().run(
         question=request.topic,
         use_web=request.use_web,
@@ -27,16 +29,34 @@ def create_report(request: ReportRequest) -> dict[str, object]:
         excel_path=request.excel_path,
         generate_report=True,
     )
-    return asdict(response)
+    return _response_to_dict(response)
 
 
-@router.get("/reports")
-def list_reports() -> dict[str, list[str]]:
+def _list_reports() -> dict[str, list[str]]:
     settings.ensure_directories()
     files = sorted(
         str(path)
         for path in settings.reports_dir.glob("*")
         if path.suffix.lower() in {".md", ".docx"}
     )
-    return {"reports": files}
+    return {"reports": files[: settings.reports_max_files]}
 
+
+@router.post("/report")
+def create_report(request: ReportRequest) -> dict[str, Any]:
+    return _create_report(request)
+
+
+@router.get("/reports")
+def list_reports() -> dict[str, list[str]]:
+    return _list_reports()
+
+
+@v1_router.post("/report")
+def create_report_v1(request: ReportRequest) -> dict[str, Any]:
+    return api_success(_create_report(request), get_request_id())
+
+
+@v1_router.get("/reports")
+def list_reports_v1() -> dict[str, Any]:
+    return api_success(_list_reports(), get_request_id())

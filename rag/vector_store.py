@@ -3,18 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from rag.interfaces import SearchResult
 from rag.loader import Document
 
-
-@dataclass
-class SearchResult:
-    text: str
-    metadata: dict[str, Any]
-    score: float
+__all__ = ["JsonVectorStore", "SearchResult", "stable_document_id"]
 
 
 class JsonVectorStore:
@@ -80,10 +75,7 @@ class JsonVectorStore:
 
     @staticmethod
     def _item_id(document: Document) -> str:
-        source = str(document.metadata.get("source", ""))
-        chunk_id = str(document.metadata.get("chunk_id", ""))
-        raw = f"{source}:{chunk_id}:{document.text}"
-        return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+        return stable_document_id(document)
 
     @staticmethod
     def _cosine(left: list[float], right: list[float]) -> float:
@@ -96,3 +88,9 @@ class JsonVectorStore:
             return 0.0
         return numerator / (left_norm * right_norm)
 
+
+def stable_document_id(document: Document) -> str:
+    source = str(document.metadata.get("source", ""))
+    chunk_id = str(document.metadata.get("chunk_id", ""))
+    raw = f"{source}:{chunk_id}:{document.text}"
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()

@@ -1,8 +1,11 @@
 from pathlib import Path
+from typing import Any
 
 from agent.executor import BusinessAnalysisAgent
-from agent.planner import BusinessPlanner
+from agent.planner import AgentPlan, BusinessPlanner
+from agent.synthesizer import LLMAnswerSynthesizer, TemplateAnswerSynthesizer
 from rag.embedding import HashingEmbeddingModel
+from rag.interfaces import SearchResult
 from rag.retriever import RAGRetriever
 from rag.splitter import TextSplitter
 from rag.vector_store import JsonVectorStore
@@ -39,3 +42,63 @@ def test_agent_generates_structured_answer(tmp_path: Path) -> None:
     assert response.sources
     assert response.report_path is not None
 
+
+class FakeLLMClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def generate(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        temperature: float | None = None,
+    ) -> str:
+        self.calls.append(
+            {
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+                "temperature": temperature,
+            }
+        )
+        return "## Answer\nFinding from the source [1]."
+
+
+def test_llm_answer_synthesizer_requests_markdown_and_citations() -> None:
+    llm = FakeLLMClient()
+    synthesizer = LLMAnswerSynthesizer(llm)
+
+    answer = synthesizer.synthesize(
+        "Summarize the market",
+        AgentPlan(intent="industry_analysis", steps=["retrieve evidence"], tools=["rag"]),
+        [SearchResult(text="Market is growing.", metadata={"source": "market.md"}, score=0.8)],
+        [],
+    )
+
+    assert answer == "## Answer\nFinding from the source [1]."
+    assert llm.calls
+    prompt = llm.calls[0]["prompt"]
+    assert "Markdown" in prompt
+    assert "[1], [2]" in prompt
+    assert "[1] source=market.md" in prompt
+
+
+def test_template_synthesizer_covers_tool_only_intents() -> None:
+    synthesizer = TemplateAnswerSynthesizer()
+
+    requirement_answer = synthesizer.synthesize(
+        "Summarize requirements",
+        AgentPlan(intent="requirement_summary", steps=["summarize"], tools=["rag"]),
+        [],
+        [{"tool": "excel", "result": {"ok": True}}],
+    )
+    data_answer = synthesizer.synthesize(
+        "Analyze metrics",
+        AgentPlan(intent="data_analysis", steps=["query"], tools=["sql"]),
+        [],
+        [{"tool": "sql", "result": {"ok": True}}],
+    )
+
+    assert "explicit requirements" in requirement_answer
+    assert "SQL or spreadsheet outputs" in data_answer
+    assert "No cited sources" in data_answer

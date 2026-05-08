@@ -28,7 +28,9 @@ class HashingEmbeddingModel:
             return vector
         return [value / norm for value in vector]
 
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        return [self.embed(text) for text in texts]
+
     @staticmethod
     def _tokens(text: str) -> list[str]:
         return re.findall(r"[a-zA-Z0-9_]+|[\u4e00-\u9fff]", text.lower())
-
